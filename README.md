@@ -1,16 +1,16 @@
 # 📱 Webapps Presensi & Laporan Harian Mitra Sosial Media
 
-Webapps responsif satu halaman (*single-page application*) untuk presensi harian mitra content creator / social media, mencatat laporan harian konten (TikTok, Instagram, Facebook, dan Live Streaming), otomatis mendeteksi lokasi GPS dan waktu presensi, serta terhubung langsung ke **Google Spreadsheet** dengan sistem keamanan **Anti-Double Presensi, Anti-Double Link, dan Validasi Akun Resmi Mitra**.
+Webapps responsif satu halaman (*single-page application*) untuk presensi harian mitra content creator / social media, mencatat laporan harian konten (TikTok, Instagram, Facebook, dan Live Streaming), otomatis mendeteksi lokasi GPS dan waktu presensi, serta terhubung langsung ke **Google Spreadsheet** dengan sistem keamanan terpadu (*Hardened Backend*).
 
 ---
 
-## ✨ Fitur Keamanan Terintegrasi (Anti-Fraud System)
+## ✨ Fitur Keamanan Terintegrasi (Enterprise Grade Anti-Fraud)
 
-Sistem ini dirancang khusus untuk meminimalkan kecurangan pelaporan konten:
+Sistem ini dirancang khusus untuk meminimalkan kecurangan pelaporan konten dan manipulasi data:
 
-1. 🔒 **Anti-Double Presensi (NIK & Tanggal)**:
-   - Mitra hanya bisa melakukan 1 kali presensi per hari.
-   - Dilindungi *client-side* dan *concurrency lock* di server (`LockService`).
+1. 🔒 **Validasi NIK & Identitas Backend (Zero-Trust Frontend)**:
+   - Data nama dan unit penugasan diambil secara independen langsung dari sheet `Master_Karyawan` di server. Manipulasi payload nama/unit dari browser akan diabaikan.
+   - NIK divalidasi dengan format angka ketat (4–16 digit) dan wajib berstatus `Aktif`.
 
 2. 🛡️ **Validasi Kepemilikan Akun Resmi Mitra (Anti-Klaim Konten Orang Lain)**:
    - Username akun media sosial tiap mitra didaftarkan pada sheet `Master_Karyawan` (TikTok, IG, FB).
@@ -18,14 +18,27 @@ Sistem ini dirancang khusus untuk meminimalkan kecurangan pelaporan konten:
    - Jika link tersebut milik kreator lain, sistem **langsung menolaknya secara real-time** dengan peringatan:
      `⛔ Bukan akun Anda (@raffinagita1717)! Wajib menggunakan akun resmi Anda (@budisantoso)`.
 
-3. 🚫 **Anti-Double Link (Cek Formulir & Riwayat Database)**:
+3. 🌐 **Whitelist Domain Resmi Platform**:
+   - Backend memverifikasi URL yang masuk dengan parser URL ketat (protokol HTTPS, tanpa kredensial tertanam, dan hostname domain resmi seperti `tiktok.com`, `vt.tiktok.com`, `instagram.com`, `facebook.com`, `fb.watch`, `youtube.com`).
+
+4. 🔢 **Validasi Integritas Jumlah Postingan**:
+   - Nilai jumlah postingan wajib berupa bilangan bulat positif (`0 - 100`). Mencegah manipulasi angka negatif atau desimal melalui Developer Tools.
+
+5. 🚫 **Anti-Double Presensi & Anti-Double Link**:
+   - **Anti-Double Presensi**: Mitra hanya bisa melakukan 1 kali presensi per hari (dilindungi `LockService`).
    - **Internal Form Check**: Mencegah paste link yang sama di kolom yang sama atau antar kolom sosmed.
    - **Database History Check**: Mencegah mitra menggunakan kembali link konten yang **sudah pernah dilaporkan pada hari-hari sebelumnya**.
    - **Normalisasi URL Pintar**: Otomatis membersihkan parameter pelacak media sosial (`?utm_source=...`, `?igsh=...`, `?fbclid=...`, dll), sehingga link yang sama tidak dapat diakali dengan mengubah query string.
 
-4. 📍 **Pencatatan Otomatis Lokasi & Waktu Server**:
+6. 📍 **Pencatatan Otomatis Lokasi & Waktu Server**:
    - Jam presensi (WIB) diambil langsung dari server Google Apps Script (bukan dari jam HP yang bisa dimundurkan).
    - Koordinat GPS (Latitude, Longitude, Akurasi) diambil secara otomatis dan langsung diubah menjadi tautan Google Maps di Spreadsheet.
+
+7. 🛡️ **Perlindungan Data Master Karyawan**:
+   - Fungsi `setupSheets()` memeriksa `getLastRow() <= 1` sebelum memasukkan data sampel, sehingga data mitra yang sudah Anda simpan **tidak akan pernah tertimpa atau terhapus** saat inisialisasi ulang dijalankan.
+
+8. ⚠️ **Sanitasi Pesan Error (Mencegah Information Leakage)**:
+   - Detail error internal aplikasi dicatat ke *Execution Logs* Google Apps Script dan pengguna hanya menerima pesan ramah yang aman tanpa membocorkan struktur kode.
 
 ---
 
@@ -56,7 +69,7 @@ Buka file **`index.html`** langsung di browser Anda:
      `https://www.tiktok.com/@raffinagita1717/video/71234567890`  
      ➔ Kolom langsung merah dan memberi peringatan bahwa link bukan milik akun Anda!
    - Coba tempel link akun Anda sendiri:  
-     `https://www.tiktok.com/@budisantoso/video/7999888777`  
+     `https://www.tiktok.com/@budisantoso/video/7999888123`  
      ➔ Sistem menampilkan checklist hijau: `✓ 1 link akun resmi valid`.
 4. **Uji Validasi Duplikat Link Lama**:
    - Coba tempel link yang pernah dipakai kemarin:  
@@ -71,14 +84,14 @@ Ikuti panduan lengkap di [**google-apps-script/PANDUAN_SETUP.md**](file:///e:/Ke
 2. Buka **Extensions > Apps Script**, lalu salin isi file [`google-apps-script/Code.gs`](file:///e:/Kerjaan/Website%20Drive/google-apps-script/Code.gs).
 3. Jalankan fungsi `setupSheets()` satu kali.
 4. Di sheet `Master_Karyawan`, atur username TikTok/IG/FB resmi masing-masing mitra.
-5. Deploy sebagai Web App (**Anyone**), lalu masukkan URL Web App ke tombol **Pengaturan (Gear ⚙️)** di `index.html`.
+5. Deploy sebagai Web App (**Anyone** atau batasi domain akun organisasi), lalu masukkan URL Web App ke tombol **Pengaturan (Gear ⚙️)** di `index.html`.
 
 ---
 
 ## 📊 Kolom Data di Google Spreadsheet
 
 ### Sheet 1: `Master_Karyawan`
-- `NIK`
+- `NIK` (4-16 digit angka)
 - `Nama Mitra`
 - `Unit / Tim`
 - `Status` (Aktif / Non-Aktif)
