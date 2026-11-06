@@ -1,0 +1,1460 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Presensi & Laporan Harian Mitra</title>
+
+  <!-- Google Fonts: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              800: '#1e40af',
+              900: '#1e3a8a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- SweetAlert2 for polished notifications -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <style>
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+
+    /* Pulse animation for live badge */
+    @keyframes pulse-ring {
+      0% {
+        transform: scale(0.95);
+        opacity: 0.8;
+      }
+
+      50% {
+        transform: scale(1.15);
+        opacity: 0.4;
+      }
+
+      100% {
+        transform: scale(0.95);
+        opacity: 0.8;
+      }
+    }
+
+    .live-pulse {
+      animation: pulse-ring 2s infinite ease-in-out;
+    }
+  </style>
+</head>
+
+<body
+  class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col antialiased selection:bg-brand-500 selection:text-white">
+
+  <!-- TOP APP BAR -->
+  <header class="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200">
+    <div class="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div
+          class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-700 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-brand-500/20">
+          <i data-lucide="calendar-check" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h1 class="text-base font-bold text-slate-900 leading-tight">Presensi Mitra</h1>
+          <p class="text-xs font-medium text-slate-500">Laporan Update Konten Harian</p>
+        </div>
+      </div>
+
+      <!-- Right actions: Settings button & Live time badge -->
+      <div class="flex items-center space-x-2">
+        <div id="liveClockBadge"
+          class="hidden sm:flex items-center space-x-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-200">
+          <i data-lucide="clock" class="w-3.5 h-3.5 text-slate-500"></i>
+          <span id="headerLiveClock">--:-- WIB</span>
+        </div>
+        <button id="btnOpenConfig" title="Konfigurasi URL Google Apps Script"
+          class="p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition border border-transparent hover:border-slate-200">
+          <i data-lucide="settings" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER (SINGLE PAGE) -->
+  <main class="flex-1 max-w-2xl w-full mx-auto px-4 py-6 space-y-6">
+
+    <!-- ALERT BANNER: URL STATUS JIKA BELUM DISETTING -->
+    <div id="setupNoticeBanner"
+      class="hidden bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs sm:text-sm text-amber-800 flex items-start space-x-3">
+      <i data-lucide="alert-circle" class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5"></i>
+      <div class="flex-1">
+        <p class="font-semibold text-amber-900">Aplikasi Berjalan dalam Mode Simulasi (Demo)</p>
+        <p class="mt-0.5 text-amber-700">Hubungkan dengan Google Spreadsheet Anda melalui tombol <strong
+            class="underline cursor-pointer" onclick="openConfigModal()">Pengaturan (Icon Gear)</strong> di atas untuk
+          menyimpan langsung ke Spreadsheet.</p>
+        <p class="mt-1 text-xs text-amber-600">
+          NIK Contoh Demo: <span class="font-mono font-bold bg-amber-100 px-1 py-0.5 rounded">1001</span> (Budi), <span
+            class="font-mono font-bold bg-amber-100 px-1 py-0.5 rounded">1002</span> (Siti), atau <span
+            class="font-mono font-bold bg-amber-100 px-1 py-0.5 rounded">1003</span> (Simulasi Sudah Absen).
+        </p>
+      </div>
+    </div>
+
+    <!-- TAHAP 1: KARTU VERIFIKASI NIK KARYAWAN / MITRA -->
+    <div id="stepVerificationCard"
+      class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 transition-all duration-300">
+      <div class="flex items-center space-x-3 mb-4">
+        <div class="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center font-bold text-sm">
+          1
+        </div>
+        <div>
+          <h2 class="text-lg font-bold text-slate-900">Verifikasi NIK Karyawan / Mitra</h2>
+          <p class="text-xs text-slate-500">Masukkan NIK terdaftar untuk memulai presensi hari ini</p>
+        </div>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label for="nikInput" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+            Nomor Induk Karyawan / Mitra (NIK) <span class="text-rose-500">*</span>
+          </label>
+          <div class="relative">
+            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+              <i data-lucide="badge-check" class="w-5 h-5"></i>
+            </div>
+            <input type="text" id="nikInput" inputmode="numeric" placeholder="Contoh: 1001"
+              class="w-full pl-11 pr-24 py-3 bg-slate-50 hover:bg-slate-100/70 focus:bg-white border border-slate-200 focus:border-brand-600 focus:ring-4 focus:ring-brand-500/10 rounded-xl text-base font-semibold text-slate-800 transition outline-none"
+              autocomplete="off" />
+            <button id="btnVerifyNik" type="button"
+              class="absolute right-2 top-2 bottom-2 px-4 bg-brand-600 hover:bg-brand-700 active:scale-95 text-white text-xs font-bold rounded-lg transition flex items-center space-x-1.5 shadow-sm shadow-brand-600/30">
+              <span id="btnVerifyText">Periksa NIK</span>
+              <div id="btnVerifySpinner"
+                class="hidden w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            </button>
+          </div>
+          <p class="mt-1.5 text-xs text-slate-500">Sistem akan mengecek status aktif & memastikan Anda belum mengisi
+            presensi hari ini.</p>
+        </div>
+
+        <!-- Info Hasil Pengecekan NIK yang sudah absen / error -->
+        <div id="nikStatusMessage" class="hidden p-3.5 rounded-xl text-xs sm:text-sm font-medium"></div>
+      </div>
+    </div>
+
+    <!-- TAHAP 2: KARTU PROFIL & FORM UPDATE HARIAN (TERBUKA SETELAH VERIFIKASI) -->
+    <div id="stepFormContainer" class="hidden space-y-6">
+
+      <!-- Profil Mitra Terverifikasi & Akun Resmi -->
+      <div
+        class="bg-gradient-to-r from-brand-900 via-brand-800 to-indigo-900 rounded-2xl text-white p-5 shadow-lg relative overflow-hidden">
+        <div class="absolute -right-6 -bottom-6 w-32 h-32 bg-white/5 rounded-full pointer-events-none"></div>
+        <div class="relative z-10 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div class="flex items-start space-x-3.5">
+            <div
+              class="w-12 h-12 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white font-bold text-lg shadow-inner flex-shrink-0 mt-0.5">
+              <span id="employeeInitials">MB</span>
+            </div>
+            <div>
+              <div class="flex items-center space-x-2">
+                <span
+                  class="inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 uppercase">Terverifikasi</span>
+                <span id="displayDate" class="text-xs text-slate-300 font-medium">Kamis, 05 Nov 2026</span>
+              </div>
+              <h3 id="displayEmployeeName" class="text-lg font-bold text-white mt-0.5">Nama Mitra</h3>
+              <p class="text-xs text-slate-300">
+                NIK: <span id="displayEmployeeNik" class="font-mono font-semibold text-white">1001</span> &bull;
+                Unit: <span id="displayEmployeeUnit" class="text-white">Mitra Digital</span>
+              </p>
+
+              <!-- BADGE AKUN RESMI MITRA (ANTI-KLAIM AKUN ORANG LAIN) -->
+              <div class="mt-2.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+                <span class="text-slate-300 text-[10px] uppercase font-bold tracking-wider">Akun Resmi:</span>
+                <span id="badgeTiktokAccount"
+                  class="px-2 py-0.5 rounded bg-white/10 text-white font-mono font-semibold border border-white/15">TikTok:
+                  -</span>
+                <span id="badgeIgAccount"
+                  class="px-2 py-0.5 rounded bg-white/10 text-white font-mono font-semibold border border-white/15">IG:
+                  -</span>
+                <span id="badgeFbAccount"
+                  class="px-2 py-0.5 rounded bg-white/10 text-white font-mono font-semibold border border-white/15">FB:
+                  -</span>
+              </div>
+            </div>
+          </div>
+          <button id="btnChangeNik" type="button"
+            class="self-start sm:self-auto px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition border border-white/15 flex items-center space-x-1.5 flex-shrink-0">
+            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+            <span>Ganti NIK</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- KARTU LOKASI & JAM OTOMATIS -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <div class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <i data-lucide="map-pin" class="w-4 h-4"></i>
+            </div>
+            <h3 class="text-sm font-bold text-slate-900">Deteksi Lokasi & Jam Presensi</h3>
+          </div>
+          <button id="btnRefreshLocation" type="button"
+            class="text-xs text-brand-600 hover:text-brand-700 font-semibold flex items-center space-x-1">
+            <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+            <span>Perbarui Lokasi</span>
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <!-- Jam Presensi Saat Ini -->
+          <div class="bg-slate-50 border border-slate-200/80 rounded-xl p-3 flex items-center space-x-3">
+            <div
+              class="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-brand-600 flex-shrink-0">
+              <i data-lucide="clock" class="w-4 h-4"></i>
+            </div>
+            <div>
+              <p class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Jam Presensi (WIB)</p>
+              <p id="liveClockForm" class="text-sm font-bold text-slate-900">--:--:-- WIB</p>
+            </div>
+          </div>
+
+          <!-- Status Lokasi GPS -->
+          <div class="bg-slate-50 border border-slate-200/80 rounded-xl p-3 flex items-center space-x-3">
+            <div id="geoIconBox"
+              class="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-amber-500 flex-shrink-0">
+              <i data-lucide="navigation" class="w-4 h-4"></i>
+            </div>
+            <div class="overflow-hidden">
+              <p class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Koordinat GPS</p>
+              <p id="geoCoordinateText" class="text-xs font-semibold text-slate-800 truncate">Mendeteksi GPS...</p>
+              <a id="geoMapsLink" href="#" target="_blank"
+                class="hidden text-[11px] text-brand-600 hover:underline font-medium items-center space-x-1 mt-0.5">
+                <span>Lihat di Peta Google</span>
+                <i data-lucide="external-link" class="w-2.5 h-2.5"></i>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Peringatan GPS jika gagal -->
+        <div id="geoAlertMessage"
+          class="hidden bg-rose-50 border border-rose-200 text-rose-800 p-2.5 rounded-xl text-xs flex items-center justify-between">
+          <span>⚠️ Lokasi belum diizinkan oleh browser. Harap izinkan akses lokasi (GPS) untuk presensi akurat.</span>
+          <button type="button" onclick="requestLocation()" class="underline font-bold ml-2">Izinkan</button>
+        </div>
+      </div>
+
+      <!-- FORM LAPORAN SOSIAL MEDIA -->
+      <form id="attendanceForm" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
+
+        <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+          <div class="flex items-center space-x-3">
+            <div
+              class="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center font-bold text-sm">
+              2
+            </div>
+            <div>
+              <h2 class="text-lg font-bold text-slate-900">Laporan Update Harian</h2>
+              <p class="text-xs text-slate-500">Isi jumlah postingan dan lampirkan link sosial media resmi Anda hari ini
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- BANNER KEAMANAN ANTI-DOUBLE LINK & VALIDASI AKUN -->
+        <div
+          class="p-3 bg-emerald-50 border border-emerald-200/80 rounded-xl text-xs text-emerald-900 flex items-start space-x-2.5">
+          <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5"></i>
+          <div class="flex-1 leading-relaxed">
+            <span class="font-bold">Keamanan Validasi Konten Aktif:</span>
+            Sistem memverifikasi bahwa setiap tautan berasal dari <strong>akun resmi Anda</strong>, menolak tautan ganda
+            dalam formulir, dan menolak tautan konten yang <strong>sudah pernah digunakan</strong> pada hari-hari
+            sebelumnya.
+          </div>
+        </div>
+
+        <!-- 1. TIKTOK -->
+        <div
+          class="bg-slate-50/80 border border-slate-200/80 rounded-xl p-4 space-y-3 hover:border-slate-300 transition">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2.5">
+              <div
+                class="w-8 h-8 rounded-lg bg-black text-white flex items-center justify-center font-bold text-xs shadow-sm">
+                <!-- TikTok Icon -->
+                <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                  <path
+                    d="M19.589 6.686a4.793 4.793 0 0 1-3.77-4.245V2h-3.445v13.672a2.896 2.896 0 0 1-5.201 1.743 2.895 2.895 0 0 1 2.312-4.636c.317 0 .625.051.916.145V9.42a6.337 6.337 0 0 0-.916-.067c-3.528 0-6.388 2.86-6.388 6.388 0 3.528 2.86 6.388 6.388 6.388 3.528 0 6.388-2.86 6.388-6.388V8.956a8.16 8.16 0 0 0 4.887 1.602V7.113a4.831 4.831 0 0 1-1.171-.427z" />
+                </svg>
+              </div>
+              <span class="text-sm font-bold text-slate-900">TikTok</span>
+            </div>
+            <span id="tiktokAllowedHandleHint" class="text-[11px] font-semibold text-slate-500">Wajib Akun Resmi</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label for="tiktokCount" class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                Jumlah Post
+              </label>
+              <input type="number" id="tiktokCount" name="tiktokCount" min="0" value="0"
+                class="w-full px-3 py-2 bg-white border border-slate-200 focus:border-brand-600 rounded-lg text-sm font-bold text-slate-800 text-center outline-none" />
+            </div>
+            <div class="sm:col-span-2">
+              <label for="tiktokLinks" class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                Link Postingan TikTok
+              </label>
+              <textarea id="tiktokLinks" name="tiktokLinks" rows="2"
+                placeholder="https://www.tiktok.com/@akun_anda/video/... (pisahkan per baris)"
+                class="social-link-input w-full px-3 py-1.5 bg-white border border-slate-200 focus:border-brand-600 rounded-lg text-xs text-slate-800 outline-none resize-none transition"></textarea>
+
+              <!-- Realtime Link Validation Status -->
+              <div id="tiktokLinksFeedback" class="mt-1 flex items-center justify-between text-[11px] text-slate-400">
+                <span class="feedback-text">0 link terdeteksi</span>
+                <button type="button" class="btn-sync text-brand-600 hover:underline font-bold hidden"
+                  onclick="syncCount('tiktok')">Set Jumlah Post Sesuai Link</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. INSTAGRAM -->
+        <div
+          class="bg-slate-50/80 border border-slate-200/80 rounded-xl p-4 space-y-3 hover:border-slate-300 transition">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2.5">
+              <div
+                class="w-8 h-8 rounded-lg bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 text-white flex items-center justify-center font-bold text-xs shadow-sm">
+                <!-- Instagram Icon SVG -->
+                <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                  <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                </svg>
+              </div>
+              <span class="text-sm font-bold text-slate-900">Instagram</span>
+            </div>
+            <span id="igAllowedHandleHint" class="text-[11px] font-semibold text-slate-500">Reels / Feed / Story</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label for="igCount" class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                Jumlah Post
+              </label>
+              <input type="number" id="igCount" name="igCount" min="0" value="0"
+                class="w-full px-3 py-2 bg-white border border-slate-200 focus:border-brand-600 rounded-lg text-sm font-bold text-slate-800 text-center outline-none" />
+            </div>
+            <div class="sm:col-span-2">
+              <label for="igLinks" class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                Link Postingan Instagram
+              </label>
+              <textarea id="igLinks" name="igLinks" rows="2"
+                placeholder="https://www.instagram.com/p/... atau https://www.instagram.com/reel/..."
+                class="social-link-input w-full px-3 py-1.5 bg-white border border-slate-200 focus:border-brand-600 rounded-lg text-xs text-slate-800 outline-none resize-none transition"></textarea>
+
+              <!-- Realtime Link Validation Status -->
+              <div id="igLinksFeedback" class="mt-1 flex items-center justify-between text-[11px] text-slate-400">
+                <span class="feedback-text">0 link terdeteksi</span>
+                <button type="button" class="btn-sync text-brand-600 hover:underline font-bold hidden"
+                  onclick="syncCount('ig')">Set Jumlah Post Sesuai Link</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. FACEBOOK -->
+        <div
+          class="bg-slate-50/80 border border-slate-200/80 rounded-xl p-4 space-y-3 hover:border-slate-300 transition">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2.5">
+              <div
+                class="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs shadow-sm">
+                <!-- Facebook Icon SVG -->
+                <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                </svg>
+              </div>
+              <span class="text-sm font-bold text-slate-900">Facebook</span>
+            </div>
+            <span id="fbAllowedHandleHint" class="text-[11px] font-semibold text-slate-500">Post / Reels /
+              Fanpage</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label for="fbCount" class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                Jumlah Post
+              </label>
+              <input type="number" id="fbCount" name="fbCount" min="0" value="0"
+                class="w-full px-3 py-2 bg-white border border-slate-200 focus:border-brand-600 rounded-lg text-sm font-bold text-slate-800 text-center outline-none" />
+            </div>
+            <div class="sm:col-span-2">
+              <label for="fbLinks" class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                Link Postingan Facebook
+              </label>
+              <textarea id="fbLinks" name="fbLinks" rows="2" placeholder="https://www.facebook.com/..."
+                class="social-link-input w-full px-3 py-1.5 bg-white border border-slate-200 focus:border-brand-600 rounded-lg text-xs text-slate-800 outline-none resize-none transition"></textarea>
+
+              <!-- Realtime Link Validation Status -->
+              <div id="fbLinksFeedback" class="mt-1 flex items-center justify-between text-[11px] text-slate-400">
+                <span class="feedback-text">0 link terdeteksi</span>
+                <button type="button" class="btn-sync text-brand-600 hover:underline font-bold hidden"
+                  onclick="syncCount('fb')">Set Jumlah Post Sesuai Link</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. LIVE STREAMING -->
+        <div
+          class="bg-slate-50/80 border border-slate-200/80 rounded-xl p-4 space-y-3 hover:border-slate-300 transition">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2.5">
+              <div
+                class="relative w-8 h-8 rounded-lg bg-rose-600 text-white flex items-center justify-center font-bold text-xs shadow-sm">
+                <i data-lucide="video" class="w-4 h-4"></i>
+                <span class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-400 rounded-full live-pulse"></span>
+              </div>
+              <span class="text-sm font-bold text-slate-900">Live Streaming</span>
+            </div>
+            <span class="text-xs font-semibold text-rose-600 flex items-center space-x-1">
+              <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+              <span>TikTok / Shopee / IG</span>
+            </span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label for="liveCount" class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                Sesi / Durasi
+              </label>
+              <input type="text" id="liveCount" name="liveCount" placeholder="Misal: 2 Jam / 1 Sesi"
+                class="w-full px-3 py-2 bg-white border border-slate-200 focus:border-brand-600 rounded-lg text-xs font-semibold text-slate-800 text-center outline-none" />
+            </div>
+            <div class="sm:col-span-2">
+              <label for="liveLinks" class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                Link Bukti / Rekaman Sesi Live
+              </label>
+              <textarea id="liveLinks" name="liveLinks" rows="2"
+                placeholder="Link rekaman, screenshot Google Drive, atau link profil saat live"
+                class="social-link-input w-full px-3 py-1.5 bg-white border border-slate-200 focus:border-brand-600 rounded-lg text-xs text-slate-800 outline-none resize-none transition"></textarea>
+
+              <!-- Realtime Link Validation Status -->
+              <div id="liveLinksFeedback" class="mt-1 flex items-center justify-between text-[11px] text-slate-400">
+                <span class="feedback-text">0 link terdeteksi</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. CATATAN / KENDALA TAMBAHAN -->
+        <div>
+          <label for="notes" class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+            Catatan Harian / Kendala / Target (Opsional)
+          </label>
+          <textarea id="notes" name="notes" rows="2"
+            placeholder="Tuliskan kendala konten hari ini atau rencana konten berikutnya..."
+            class="w-full px-3.5 py-2.5 bg-slate-50 focus:bg-white border border-slate-200 focus:border-brand-600 rounded-xl text-xs text-slate-800 outline-none"></textarea>
+        </div>
+
+        <!-- RINGKASAN TOTAL POSTINGAN & TOMBOL SUBMIT -->
+        <div class="pt-2 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div class="text-xs text-slate-600 flex items-center space-x-2">
+            <span class="font-medium">Total Postingan Hari Ini:</span>
+            <span id="totalPostsBadge" class="px-2.5 py-0.5 rounded-full bg-slate-900 text-white font-bold text-xs">0
+              Konten</span>
+          </div>
+
+          <button type="submit" id="btnSubmitReport"
+            class="w-full sm:w-auto px-7 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:scale-95 text-white text-sm font-bold rounded-xl transition shadow-lg shadow-emerald-600/25 flex items-center justify-center space-x-2">
+            <i data-lucide="send" class="w-4 h-4"></i>
+            <span id="btnSubmitText">Kirim Presensi & Laporan</span>
+            <div id="btnSubmitSpinner"
+              class="hidden w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- TAHAP 3: STRUK TANDA BUKTI PRESENSI SUKSES (TAMPIL SETELAH KIRIM) -->
+    <div id="stepSuccessCard"
+      class="hidden bg-white rounded-2xl border border-emerald-200 shadow-xl p-6 sm:p-8 space-y-6 text-center">
+      <div
+        class="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner">
+        <i data-lucide="check-circle-2" class="w-10 h-10"></i>
+      </div>
+      <div>
+        <span
+          class="inline-block px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 mb-2">Presensi
+          Hari Ini Berhasil!</span>
+        <h2 class="text-xl sm:text-2xl font-bold text-slate-900">Terima Kasih, <span id="successMitraName">Budi
+            Santoso</span>!</h2>
+        <p class="text-xs sm:text-sm text-slate-500 mt-1">Laporan harian dan kehadiran Anda telah tersimpan otomatis ke
+          dalam Google Spreadsheet.</p>
+      </div>
+
+      <!-- Ringkasan Struk Presensi -->
+      <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 text-left text-xs space-y-2.5 max-w-md mx-auto">
+        <div class="flex justify-between border-b border-slate-200 pb-2">
+          <span class="text-slate-500">ID Transaksi</span>
+          <span id="receiptId" class="font-mono font-bold text-slate-900">PRES-20261105-1001</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-slate-500">NIK & Mitra</span>
+          <span id="receiptNikName" class="font-semibold text-slate-800">1001 - Budi</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-slate-500">Waktu & Tanggal</span>
+          <span id="receiptTime" class="font-semibold text-slate-800">05 Nov 2026, 14:35 WIB</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-slate-500">Total Postingan</span>
+          <span id="receiptPosts" class="font-bold text-brand-600">4 Konten</span>
+        </div>
+        <div class="flex justify-between items-center pt-1 border-t border-slate-200">
+          <span class="text-slate-500">Lokasi Presensi</span>
+          <a id="receiptMapsLink" href="#" target="_blank"
+            class="text-brand-600 hover:underline font-semibold flex items-center space-x-1">
+            <span>Buka Google Maps</span>
+            <i data-lucide="external-link" class="w-3 h-3"></i>
+          </a>
+        </div>
+      </div>
+
+      <div class="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 text-xs">
+        🔒 <strong>Kunci Presensi Aktif:</strong> Anda tidak dapat mengisi presensi kembali pada tanggal yang sama.
+        Tombol pengisian telah dikunci untuk akun Anda hari ini.
+      </div>
+
+      <div class="flex justify-center space-x-3">
+        <button type="button" onclick="window.print()"
+          class="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold transition flex items-center space-x-1.5">
+          <i data-lucide="printer" class="w-4 h-4"></i>
+          <span>Cetak / Simpan Bukti</span>
+        </button>
+        <button type="button" onclick="resetToHome()"
+          class="px-5 py-2.5 rounded-xl bg-slate-900 text-white hover:bg-slate-800 text-xs font-bold transition flex items-center space-x-1.5">
+          <i data-lucide="check" class="w-4 h-4"></i>
+          <span>Selesai</span>
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="mt-auto py-5 border-t border-slate-200 bg-white text-center text-xs text-slate-400">
+    <div class="max-w-2xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+      <p>&copy; 2026 Presensi Mitra Media Sosial. Real-time Google Sheets Integration.</p>
+      <div class="flex items-center space-x-2 text-slate-400">
+        <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-500"></i>
+        <span>Anti-Double Entry & Account Ownership Protection Active</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- MODAL KONFIGURASI URL GOOGLE APPS SCRIPT -->
+  <div id="configModal"
+    class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div class="flex items-center space-x-2">
+          <div class="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center font-bold">
+            <i data-lucide="database" class="w-4 h-4"></i>
+          </div>
+          <h3 class="text-base font-bold text-slate-900">Konfigurasi URL Spreadsheet</h3>
+        </div>
+        <button onclick="closeConfigModal()" class="text-slate-400 hover:text-slate-600">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs sm:text-sm">
+        <p class="text-slate-600">
+          Masukkan <strong>Web App URL</strong> dari Google Apps Script yang sudah Anda deploy sebagai <em>Anyone (Siapa
+            saja)</em>:
+        </p>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+            Google Apps Script Web App URL
+          </label>
+          <input type="url" id="gasUrlInput" placeholder="https://script.google.com/macros/s/.../exec"
+            class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs text-slate-800 focus:bg-white focus:border-brand-600 outline-none" />
+        </div>
+        <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-500 space-y-1">
+          <p class="font-semibold text-slate-700">💡 Cara Dapatkan URL:</p>
+          <p>1. Buka Spreadsheet &gt; <strong>Extensions &gt; Apps Script</strong></p>
+          <p>2. Paste kode dari file <code>google-apps-script/Code.gs</code></p>
+          <p>3. Klik <strong>Deploy &gt; New deployment &gt; Web app</strong></p>
+          <p>4. Set <em>Who has access</em> ke <strong>Anyone</strong>, lalu salin URL yang berakhiran
+            <code>/exec</code></p>
+        </div>
+      </div>
+
+      <div class="pt-2 flex justify-end space-x-2">
+        <button type="button" onclick="closeConfigModal()"
+          class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100">Batal</button>
+        <button type="button" onclick="saveConfigUrl()"
+          class="px-5 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold shadow-md shadow-brand-600/20">Simpan
+          URL</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCRIPT LOGIC -->
+  <script>
+    // ==========================================
+    // 1. STATE & KONFIGURASI
+    // ==========================================
+    let CONFIG_SCRIPT_URL = localStorage.getItem("PRESENSI_GAS_URL") || "";
+
+    // Data sesi aktif mitra
+    let currentEmployee = null;
+    let currentLocation = {
+      latitude: "",
+      longitude: "",
+      accuracy: "",
+      mapsLink: ""
+    };
+
+    // Database dummy mitra untuk mode simulasi dengan akun resmi masing-masing
+    const MOCK_DATABASE = {
+      "1001": {
+        nik: "1001",
+        nama: "Budi Santoso",
+        unit: "Mitra Surabaya (Content Creator)",
+        alreadySubmitted: false,
+        tiktokAccount: "@budisantoso",
+        igAccount: "@budisantoso_id",
+        fbAccount: "budi.santoso.page"
+      },
+      "1002": {
+        nik: "1002",
+        nama: "Siti Rahma",
+        unit: "Mitra Jakarta (Reels & Feed)",
+        alreadySubmitted: false,
+        tiktokAccount: "@sitirahma_creator",
+        igAccount: "@sitirahma_daily",
+        fbAccount: "siti.rahma.official"
+      },
+      "1003": {
+        nik: "1003",
+        nama: "Ahmad Fauzi",
+        unit: "Mitra Bandung (Livestreamer)",
+        alreadySubmitted: true,
+        submittedTime: "08:45 WIB",
+        tiktokAccount: "@ahmadfauzi_live",
+        igAccount: "@ahmadfauzi_id",
+        fbAccount: "ahmad.fauzi"
+      },
+      "1004": {
+        nik: "1004",
+        nama: "Dewi Lestari",
+        unit: "Mitra Medan",
+        alreadySubmitted: false,
+        tiktokAccount: "@dewilestari_content",
+        igAccount: "@dewi.lestari",
+        fbAccount: "dewi.lestari.page"
+      },
+    };
+
+    // Database dummy riwayat link yang sudah pernah digunakan sebelumnya (untuk simulasi demo)
+    const MOCK_EXISTING_LINKS = [
+      { url: "https://www.tiktok.com/@budisantoso/video/71234567890", date: "2026-11-04", nama: "Budi Santoso", nik: "1001", platform: "TikTok" },
+      { url: "https://www.instagram.com/reel/C8XYZ12345", date: "2026-11-04", nama: "Siti Rahma", nik: "1002", platform: "Instagram" },
+      { url: "https://www.facebook.com/reel/9988776655", date: "2026-11-03", nama: "Ahmad Fauzi", nik: "1003", platform: "Facebook" }
+    ];
+
+    // ==========================================
+    // 2. INISIALISASI SAAT HALAMAN DIBUKA
+    // ==========================================
+    document.addEventListener("DOMContentLoaded", () => {
+      lucide.createIcons();
+      initLiveClock();
+      checkConfigUrlStatus();
+      requestLocation();
+      setupEventListeners();
+    });
+
+    function checkConfigUrlStatus() {
+      const banner = document.getElementById("setupNoticeBanner");
+      if (!CONFIG_SCRIPT_URL) {
+        banner.classList.remove("hidden");
+      } else {
+        banner.classList.add("hidden");
+      }
+    }
+
+    // ==========================================
+    // 3. LIVE CLOCK & FORMAT TANGGAL
+    // ==========================================
+    function initLiveClock() {
+      const updateClocks = () => {
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) + " WIB";
+        const shortTimeStr = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) + " WIB";
+
+        const headerClock = document.getElementById("headerLiveClock");
+        const formClock = document.getElementById("liveClockForm");
+
+        if (headerClock) headerClock.textContent = shortTimeStr;
+        if (formClock) formClock.textContent = timeStr;
+      };
+
+      updateClocks();
+      setInterval(updateClocks, 1000);
+
+      const now = new Date();
+      const options = { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' };
+      const dateStr = now.toLocaleDateString('id-ID', options);
+      const displayDate = document.getElementById("displayDate");
+      if (displayDate) displayDate.textContent = dateStr;
+    }
+
+    // ==========================================
+    // 4. DETEKSI LOKASI GEOLOCATION
+    // ==========================================
+    function requestLocation() {
+      const statusText = document.getElementById("geoCoordinateText");
+      const mapsLink = document.getElementById("geoMapsLink");
+      const alertBox = document.getElementById("geoAlertMessage");
+      const iconBox = document.getElementById("geoIconBox");
+
+      statusText.textContent = "Mencari sinyal GPS...";
+      alertBox.classList.add("hidden");
+
+      if (!navigator.geolocation) {
+        statusText.textContent = "GPS tidak didukung browser";
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const lat = position.coords.latitude.toFixed(6);
+          const lng = position.coords.longitude.toFixed(6);
+          const acc = Math.round(position.coords.accuracy);
+
+          currentLocation = {
+            latitude: lat,
+            longitude: lng,
+            accuracy: acc + " m",
+            mapsLink: `https://www.google.com/maps?q=${lat},${lng}`
+          };
+
+          statusText.textContent = `${lat}, ${lng} (±${acc}m)`;
+          mapsLink.href = currentLocation.mapsLink;
+          mapsLink.classList.remove("hidden");
+          mapsLink.classList.add("inline-flex");
+
+          iconBox.classList.remove("text-amber-500", "text-rose-500");
+          iconBox.classList.add("text-emerald-600");
+          alertBox.classList.add("hidden");
+        },
+        (error) => {
+          console.warn("GPS error:", error);
+          statusText.textContent = "Izin lokasi belum diberikan";
+          iconBox.classList.remove("text-emerald-600");
+          iconBox.classList.add("text-rose-500");
+          alertBox.classList.remove("hidden");
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    }
+
+    // ==========================================
+    // 5. HELPER NORMALISASI & VALIDASI LINK
+    // ==========================================
+
+    function cleanHandle(handle) {
+      if (!handle) return "";
+      return handle.toString().trim().replace(/^@+/, "").toLowerCase();
+    }
+
+    function normalizeUrl(rawUrl) {
+      if (!rawUrl) return "";
+      let url = rawUrl.trim();
+      if (/^www\./i.test(url)) url = "https://" + url;
+
+      try {
+        const queryIdx = url.indexOf("?");
+        let base = queryIdx !== -1 ? url.substring(0, queryIdx) : url;
+        let query = queryIdx !== -1 ? url.substring(queryIdx + 1) : "";
+
+        base = base.replace(/\/+$/, "").toLowerCase();
+
+        if (query) {
+          const filteredParams = query.split("&").filter(pair => {
+            const key = pair.split("=")[0].toLowerCase();
+            return !key.startsWith("utm_") &&
+              key !== "igsh" &&
+              key !== "fbclid" &&
+              key !== "si" &&
+              key !== "t" &&
+              key !== "is_from_webapp" &&
+              key !== "sender_device";
+          });
+          if (filteredParams.length > 0) {
+            return base + "?" + filteredParams.sort().join("&").toLowerCase();
+          }
+        }
+        return base;
+      } catch (e) {
+        return url.replace(/\/+$/, "").toLowerCase();
+      }
+    }
+
+    function extractUrls(text) {
+      if (!text) return [];
+      const tokens = text.toString().split(/[\r\n\s,;]+/);
+      const urls = [];
+      const urlRegex = /^(https?:\/\/|www\.)[^\s/$.?#].[^\s]*$/i;
+
+      for (const t of tokens) {
+        const trimmed = t.trim();
+        if (trimmed && urlRegex.test(trimmed)) {
+          urls.push(trimmed);
+        }
+      }
+      return urls;
+    }
+
+    // Ekstrak username TikTok dari URL
+    function extractTiktokUsername(url) {
+      if (!url) return null;
+      const match = url.match(/tiktok\.com\/@([a-zA-Z0-9_.-]+)/i);
+      return match ? match[1] : null;
+    }
+
+    // Ekstrak username Facebook dari URL
+    function extractFacebookUsername(url) {
+      if (!url) return null;
+      const match = url.match(/facebook\.com\/([a-zA-Z0-9_.-]+)\/(?:posts|videos|reel|photos)/i);
+      if (match) {
+        const slug = match[1].toLowerCase();
+        if (!["watch", "reel", "share", "story", "groups", "pages"].includes(slug)) {
+          return match[1];
+        }
+      }
+      return null;
+    }
+
+    // Validasi Real-time Seluruh Link & Kepemilikan Akun Resmi
+    function validateAllLinksRealtime() {
+      const platforms = [
+        { key: "tiktok", name: "TikTok", fieldId: "tiktokLinks", feedbackId: "tiktokLinksFeedback", countId: "tiktokCount" },
+        { key: "ig", name: "Instagram", fieldId: "igLinks", feedbackId: "igLinksFeedback", countId: "igCount" },
+        { key: "fb", name: "Facebook", fieldId: "fbLinks", feedbackId: "fbLinksFeedback", countId: "fbCount" },
+        { key: "live", name: "Live Streaming", fieldId: "liveLinks", feedbackId: "liveLinksFeedback", countId: null }
+      ];
+
+      const globalSeen = new Map();
+      let hasError = false;
+      let firstErrorMessage = "";
+      let errorType = ""; // 'ownership' or 'duplicate'
+
+      platforms.forEach(p => {
+        const textarea = document.getElementById(p.fieldId);
+        const feedback = document.getElementById(p.feedbackId);
+        const statusSpan = feedback.querySelector(".feedback-text");
+        const syncBtn = feedback.querySelector(".btn-sync");
+
+        const text = textarea.value.trim();
+        const urls = extractUrls(text);
+        const platformSeen = new Set();
+        let platformDuplicate = null;
+        let crossDuplicate = null;
+        let ownershipMismatch = null;
+
+        // 1. Cek Kepemilikan Akun Resmi (Ownership Check)
+        if (p.key === "tiktok" && currentEmployee && currentEmployee.tiktokAccount) {
+          const regClean = cleanHandle(currentEmployee.tiktokAccount);
+          for (const u of urls) {
+            const extracted = extractTiktokUsername(u);
+            if (extracted && cleanHandle(extracted) !== regClean) {
+              ownershipMismatch = {
+                url: u,
+                extracted: extracted,
+                expected: currentEmployee.tiktokAccount
+              };
+              break;
+            }
+          }
+        } else if (p.key === "fb" && currentEmployee && currentEmployee.fbAccount) {
+          const regClean = cleanHandle(currentEmployee.fbAccount);
+          for (const u of urls) {
+            const extracted = extractFacebookUsername(u);
+            if (extracted && cleanHandle(extracted) !== regClean) {
+              ownershipMismatch = {
+                url: u,
+                extracted: extracted,
+                expected: currentEmployee.fbAccount
+              };
+              break;
+            }
+          }
+        }
+
+        // 2. Cek Duplikasi Tautan
+        if (!ownershipMismatch) {
+          for (const url of urls) {
+            const norm = normalizeUrl(url);
+
+            if (platformSeen.has(norm)) {
+              platformDuplicate = url;
+              break;
+            }
+            platformSeen.add(norm);
+
+            if (globalSeen.has(norm)) {
+              crossDuplicate = { url, otherPlatform: globalSeen.get(norm).name };
+              break;
+            }
+            globalSeen.set(norm, { name: p.name, url });
+          }
+        }
+
+        // 3. Render Status Visual Feedback
+        if (ownershipMismatch) {
+          hasError = true;
+          errorType = "ownership";
+          firstErrorMessage = `Tautan ${p.name} ditolak! Konten ini milik akun @${ownershipMismatch.extracted}. Anda hanya diperbolehkan melaporkan konten dari akun resmi Anda (${ownershipMismatch.expected}).`;
+          textarea.classList.add("border-rose-500", "bg-rose-50/40");
+          textarea.classList.remove("border-slate-200", "border-emerald-500");
+          statusSpan.innerHTML = `<span class="text-rose-600 font-bold">⛔ Bukan akun Anda (@${ownershipMismatch.extracted})! Wajib ${ownershipMismatch.expected}</span>`;
+          if (syncBtn) syncBtn.classList.add("hidden");
+
+        } else if (platformDuplicate) {
+          hasError = true;
+          errorType = "duplicate";
+          firstErrorMessage = `Tautan ganda di kolom ${p.name}! Anda menginput tautan yang sama lebih dari satu kali.`;
+          textarea.classList.add("border-rose-500", "bg-rose-50/40");
+          textarea.classList.remove("border-slate-200", "border-emerald-500");
+          statusSpan.innerHTML = `<span class="text-rose-600 font-bold">⚠️ Duplikat terdeteksi: tautan dimasukkan lebih dari 1x</span>`;
+          if (syncBtn) syncBtn.classList.add("hidden");
+
+        } else if (crossDuplicate) {
+          hasError = true;
+          errorType = "duplicate";
+          firstErrorMessage = `Tautan ganda! Tautan di kolom ${p.name} sama dengan tautan di kolom ${crossDuplicate.otherPlatform}.`;
+          textarea.classList.add("border-rose-500", "bg-rose-50/40");
+          textarea.classList.remove("border-slate-200", "border-emerald-500");
+          statusSpan.innerHTML = `<span class="text-rose-600 font-bold">⚠️ Tautan ini sudah ada di kolom ${crossDuplicate.otherPlatform}!</span>`;
+          if (syncBtn) syncBtn.classList.add("hidden");
+
+        } else {
+          textarea.classList.remove("border-rose-500", "bg-rose-50/40");
+          if (urls.length > 0) {
+            textarea.classList.add("border-emerald-500");
+            textarea.classList.remove("border-slate-200");
+            statusSpan.innerHTML = `<span class="text-emerald-600 font-semibold">✓ ${urls.length} link akun resmi valid</span>`;
+
+            if (syncBtn && p.countId) {
+              const currentCount = parseInt(document.getElementById(p.countId).value) || 0;
+              if (currentCount !== urls.length) {
+                syncBtn.classList.remove("hidden");
+                syncBtn.textContent = `Set Jumlah Post Jadi ${urls.length}`;
+              } else {
+                syncBtn.classList.add("hidden");
+              }
+            }
+          } else {
+            textarea.classList.remove("border-emerald-500");
+            textarea.classList.add("border-slate-200");
+            statusSpan.textContent = "0 link terdeteksi";
+            if (syncBtn) syncBtn.classList.add("hidden");
+          }
+        }
+      });
+
+      return {
+        isValid: !hasError,
+        errorMessage: firstErrorMessage,
+        errorType: errorType,
+        totalUniqueLinks: globalSeen.size,
+        allNormalizedLinks: globalSeen
+      };
+    }
+
+    function syncCount(platformKey) {
+      const fieldIdMap = {
+        tiktok: { links: "tiktokLinks", count: "tiktokCount" },
+        ig: { links: "igLinks", count: "igCount" },
+        fb: { links: "fbLinks", count: "fbCount" }
+      };
+
+      const map = fieldIdMap[platformKey];
+      if (!map) return;
+
+      const textarea = document.getElementById(map.links);
+      const urls = extractUrls(textarea.value);
+      const countInput = document.getElementById(map.count);
+
+      countInput.value = urls.length;
+      calculateTotalPosts();
+      validateAllLinksRealtime();
+    }
+
+    // ==========================================
+    // 6. EVENT LISTENERS
+    // ==========================================
+    function setupEventListeners() {
+      const btnVerify = document.getElementById("btnVerifyNik");
+      const nikInput = document.getElementById("nikInput");
+
+      btnVerify.addEventListener("click", () => handleNikVerification());
+      nikInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          handleNikVerification();
+        }
+      });
+
+      document.getElementById("btnChangeNik").addEventListener("click", resetToNikStep);
+      document.getElementById("btnRefreshLocation").addEventListener("click", requestLocation);
+      document.getElementById("btnOpenConfig").addEventListener("click", openConfigModal);
+
+      const countInputs = ["tiktokCount", "igCount", "fbCount"];
+      countInputs.forEach(id => {
+        document.getElementById(id).addEventListener("input", calculateTotalPosts);
+      });
+
+      const linkInputs = ["tiktokLinks", "igLinks", "fbLinks", "liveLinks"];
+      linkInputs.forEach(id => {
+        const el = document.getElementById(id);
+        el.addEventListener("input", () => validateAllLinksRealtime());
+        el.addEventListener("blur", () => validateAllLinksRealtime());
+      });
+
+      document.getElementById("attendanceForm").addEventListener("submit", handleFormSubmit);
+    }
+
+    function calculateTotalPosts() {
+      const tiktok = parseInt(document.getElementById("tiktokCount").value) || 0;
+      const ig = parseInt(document.getElementById("igCount").value) || 0;
+      const fb = parseInt(document.getElementById("fbCount").value) || 0;
+      const total = tiktok + ig + fb;
+
+      document.getElementById("totalPostsBadge").textContent = `${total} Konten`;
+      return total;
+    }
+
+    // ==========================================
+    // 7. PROSES VERIFIKASI NIK
+    // ==========================================
+    async function handleNikVerification() {
+      const nikInput = document.getElementById("nikInput");
+      const nik = nikInput.value.trim();
+      const statusBox = document.getElementById("nikStatusMessage");
+      const btnText = document.getElementById("btnVerifyText");
+      const spinner = document.getElementById("btnVerifySpinner");
+
+      if (!nik) {
+        showStatusMessage("Silakan ketikkan NIK Anda terlebih dahulu.", "error");
+        nikInput.focus();
+        return;
+      }
+
+      btnText.textContent = "Mengecek...";
+      spinner.classList.remove("hidden");
+      statusBox.classList.add("hidden");
+
+      try {
+        if (CONFIG_SCRIPT_URL) {
+          const fetchUrl = `${CONFIG_SCRIPT_URL}?action=checkNik&nik=${encodeURIComponent(nik)}`;
+          const response = await fetch(fetchUrl);
+          const res = await response.json();
+
+          if (!res.success) {
+            if (res.code === "ALREADY_SUBMITTED") {
+              showStatusMessage(`⛔ ${res.message}`, "warning");
+              Swal.fire({
+                icon: "warning",
+                title: "Sudah Melakukan Presensi!",
+                html: `<strong>${res.data ? res.data.nama : 'Mitra'}</strong> (NIK: ${nik}) sudah mengisi presensi untuk hari ini pada pukul <strong>${res.data ? res.data.jam : '-'}</strong>.<br><br><span class="text-xs text-slate-500">Sistem membatasi 1 kali presensi per hari untuk setiap mitra.</span>`,
+                confirmButtonColor: "#2563eb",
+                confirmButtonText: "Mengerti"
+              });
+            } else {
+              showStatusMessage(`❌ ${res.message}`, "error");
+            }
+            return;
+          }
+
+          onNikVerified(res.employee);
+
+        } else {
+          // DEMO MOCK MODE
+          await new Promise(r => setTimeout(r, 600));
+
+          const mock = MOCK_DATABASE[nik];
+          if (!mock) {
+            showStatusMessage(`❌ NIK ${nik} tidak ditemukan dalam database demo. Coba NIK 1001 atau 1002.`, "error");
+            return;
+          }
+
+          if (mock.alreadySubmitted) {
+            showStatusMessage(`⛔ Mitra ${mock.nama} (NIK: ${nik}) SUDAH melakukan presensi hari ini pada pukul ${mock.submittedTime}.`, "warning");
+            Swal.fire({
+              icon: "warning",
+              title: "Sudah Absen Hari Ini!",
+              text: `Mitra ${mock.nama} (NIK: ${nik}) sudah terekam presensi pada pukul ${mock.submittedTime}. Anda tidak bisa double absen.`,
+              confirmButtonColor: "#2563eb"
+            });
+            return;
+          }
+
+          onNikVerified(mock);
+        }
+
+      } catch (err) {
+        console.error("Verification error:", err);
+        showStatusMessage("⚠️ Gagal menghubungi server Google Sheets. Periksa koneksi internet atau format URL Web App.", "error");
+      } finally {
+        btnText.textContent = "Periksa NIK";
+        spinner.classList.add("hidden");
+      }
+    }
+
+    function showStatusMessage(msg, type) {
+      const box = document.getElementById("nikStatusMessage");
+      box.classList.remove("hidden", "bg-rose-50", "text-rose-800", "border", "border-rose-200", "bg-amber-50", "text-amber-900", "border-amber-200");
+
+      if (type === "warning") {
+        box.classList.add("bg-amber-50", "text-amber-900", "border", "border-amber-200");
+      } else {
+        box.classList.add("bg-rose-50", "text-rose-800", "border", "border-rose-200");
+      }
+      box.innerHTML = msg;
+    }
+
+    function onNikVerified(employee) {
+      currentEmployee = employee;
+
+      document.getElementById("displayEmployeeName").textContent = employee.nama;
+      document.getElementById("displayEmployeeNik").textContent = employee.nik;
+      document.getElementById("displayEmployeeUnit").textContent = employee.unit || "Mitra Sosial Media";
+
+      // Tampilkan Akun Resmi Mitra
+      document.getElementById("badgeTiktokAccount").textContent = `TikTok: ${employee.tiktokAccount || '-'}`;
+      document.getElementById("badgeIgAccount").textContent = `IG: ${employee.igAccount || '-'}`;
+      document.getElementById("badgeFbAccount").textContent = `FB: ${employee.fbAccount || '-'}`;
+
+      // Update petunjuk di header kartu masing-masing sosmed
+      const tiktokHint = document.getElementById("tiktokAllowedHandleHint");
+      if (tiktokHint) {
+        tiktokHint.innerHTML = employee.tiktokAccount ? `Akun: <strong class="text-slate-800">${employee.tiktokAccount}</strong>` : `Akun Bebas`;
+      }
+      const igHint = document.getElementById("igAllowedHandleHint");
+      if (igHint) {
+        igHint.innerHTML = employee.igAccount ? `Akun: <strong class="text-slate-800">${employee.igAccount}</strong>` : `Akun Bebas`;
+      }
+      const fbHint = document.getElementById("fbAllowedHandleHint");
+      if (fbHint) {
+        fbHint.innerHTML = employee.fbAccount ? `Akun: <strong class="text-slate-800">${employee.fbAccount}</strong>` : `Akun Bebas`;
+      }
+
+      const names = employee.nama.trim().split(" ");
+      let initials = names[0].charAt(0).toUpperCase();
+      if (names.length > 1) initials += names[names.length - 1].charAt(0).toUpperCase();
+      document.getElementById("employeeInitials").textContent = initials;
+
+      document.getElementById("stepVerificationCard").classList.add("opacity-50", "pointer-events-none");
+      document.getElementById("stepFormContainer").classList.remove("hidden");
+
+      setTimeout(() => {
+        document.getElementById("stepFormContainer").scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+
+      requestLocation();
+
+      Swal.mixin({
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+      }).fire({
+        icon: 'success',
+        title: `Selamat datang, ${employee.nama}!`
+      });
+    }
+
+    function resetToNikStep() {
+      currentEmployee = null;
+      document.getElementById("stepVerificationCard").classList.remove("opacity-50", "pointer-events-none");
+      document.getElementById("stepFormContainer").classList.add("hidden");
+      document.getElementById("nikInput").focus();
+      document.getElementById("nikStatusMessage").classList.add("hidden");
+    }
+
+    // ==========================================
+    // 8. SUBMIT PRESENSI & LAPORAN HARIAN
+    // ==========================================
+    async function handleFormSubmit(e) {
+      e.preventDefault();
+
+      if (!currentEmployee) {
+        Swal.fire("Error", "Harap verifikasi NIK terlebih dahulu.", "error");
+        return;
+      }
+
+      // 1. VALIDASI KEAMANAN: ANTI-DOUBLE LINK & KEPEMILIKAN AKUN
+      const linkCheck = validateAllLinksRealtime();
+      if (!linkCheck.isValid) {
+        const titleText = linkCheck.errorType === "ownership" ? "Bukan Akun Resmi Anda!" : "Tautan Duplikat Terdeteksi!";
+        Swal.fire({
+          icon: "error",
+          title: titleText,
+          html: `<p class="text-sm">${linkCheck.errorMessage}</p><p class="text-xs text-slate-500 mt-2">Pastikan hanya melaporkan konten milik akun resmi Anda sendiri.</p>`,
+          confirmButtonColor: "#dc2626"
+        });
+        return;
+      }
+
+      // Hitung total konten
+      const totalPosts = calculateTotalPosts();
+      const liveDuration = document.getElementById("liveCount").value.trim();
+
+      if (totalPosts === 0 && !liveDuration) {
+        const confirmEmpty = await Swal.fire({
+          title: "Belum Ada Postingan / Live?",
+          text: "Anda belum mengisi jumlah postingan atau durasi live hari ini. Tetap ingin mengirimkan presensi?",
+          icon: "question",
+          showCancelButton: true,
+          confirmButtonText: "Ya, Tetap Kirim",
+          cancelButtonText: "Lengkapi Dulu",
+          confirmButtonColor: "#059669"
+        });
+        if (!confirmEmpty.isConfirmed) return;
+      }
+
+      // 2. SIMULASI ANTI-DUPLICATE DATABASE LINK (PADA MODE DEMO)
+      if (!CONFIG_SCRIPT_URL) {
+        for (const [normUrl, item] of linkCheck.allNormalizedLinks) {
+          const matchExisting = MOCK_EXISTING_LINKS.find(m => normalizeUrl(m.url) === normUrl);
+          if (matchExisting) {
+            Swal.fire({
+              icon: "error",
+              title: "Tautan Sudah Pernah Digunakan!",
+              html: `
+                <div class="text-left text-xs space-y-2 p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-900">
+                  <p><strong>⛔ Tautan Ditolak:</strong></p>
+                  <p class="font-mono bg-white p-1.5 rounded border border-rose-200 break-all">${item.url}</p>
+                  <p>Tautan ini tercatat <strong>sudah pernah digunakan</strong> pada presensi tanggal <strong>${matchExisting.date}</strong> oleh <strong>${matchExisting.nama}</strong> (NIK: ${matchExisting.nik}).</p>
+                  <p class="text-slate-600 italic">Harap hanya menginput tautan konten baru hari ini!</p>
+                </div>
+              `,
+              confirmButtonColor: "#dc2626"
+            });
+            return;
+          }
+        }
+      }
+
+      // Siapkan payload data
+      const payload = {
+        nik: currentEmployee.nik,
+        nama: currentEmployee.nama,
+        unit: currentEmployee.unit,
+        tiktokCount: document.getElementById("tiktokCount").value,
+        tiktokLinks: document.getElementById("tiktokLinks").value.trim(),
+        igCount: document.getElementById("igCount").value,
+        igLinks: document.getElementById("igLinks").value.trim(),
+        fbCount: document.getElementById("fbCount").value,
+        fbLinks: document.getElementById("fbLinks").value.trim(),
+        liveCount: liveDuration,
+        liveLinks: document.getElementById("liveLinks").value.trim(),
+        notes: document.getElementById("notes").value.trim(),
+        latitude: currentLocation.latitude,
+        longitude: currentLocation.longitude,
+        accuracy: currentLocation.accuracy,
+        userAgent: navigator.userAgent
+      };
+
+      const btnSubmit = document.getElementById("btnSubmitReport");
+      const btnText = document.getElementById("btnSubmitText");
+      const spinner = document.getElementById("btnSubmitSpinner");
+
+      btnSubmit.disabled = true;
+      btnText.textContent = "Menyimpan ke Spreadsheet...";
+      spinner.classList.remove("hidden");
+
+      try {
+        if (CONFIG_SCRIPT_URL) {
+          const response = await fetch(CONFIG_SCRIPT_URL, {
+            method: "POST",
+            headers: {
+              "Content-Type": "text/plain;charset=utf-8",
+            },
+            body: JSON.stringify(payload)
+          });
+
+          const result = await response.json();
+
+          if (!result.success) {
+            Swal.fire({
+              icon: "error",
+              title: result.code === "INVALID_ACCOUNT_OWNERSHIP" ? "Bukan Akun Resmi Anda!" : "Gagal Menyimpan",
+              html: `<div class="text-left text-xs p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-900 whitespace-pre-wrap">${result.message}</div>`,
+              confirmButtonColor: "#dc2626"
+            });
+            return;
+          }
+
+          showSuccessReceipt({
+            id: result.idTransaksi || `PRES-${Date.now()}-${payload.nik}`,
+            nama: payload.nama,
+            nik: payload.nik,
+            time: `${result.tanggal || ''} ${result.jam || ''}`,
+            totalPosts: result.totalPost || totalPosts,
+            mapsLink: result.mapsLink || currentLocation.mapsLink
+          });
+
+        } else {
+          // DEMO MOCK SUBMIT
+          await new Promise(r => setTimeout(r, 1000));
+
+          if (MOCK_DATABASE[payload.nik]) {
+            MOCK_DATABASE[payload.nik].alreadySubmitted = true;
+            MOCK_DATABASE[payload.nik].submittedTime = new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) + " WIB";
+          }
+
+          const now = new Date();
+          const timeStr = now.toLocaleDateString("id-ID") + ", " + now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) + " WIB";
+
+          showSuccessReceipt({
+            id: `DEMO-${Date.now()}-${payload.nik}`,
+            nama: payload.nama,
+            nik: payload.nik,
+            time: timeStr,
+            totalPosts: totalPosts,
+            mapsLink: currentLocation.mapsLink || "https://maps.google.com"
+          });
+        }
+
+      } catch (err) {
+        console.error("Submit error:", err);
+        Swal.fire({
+          icon: "error",
+          title: "Kendala Jaringan",
+          text: "Gagal mengirim data ke Google Sheets. Silakan periksa koneksi Anda dan coba lagi.",
+          confirmButtonColor: "#dc2626"
+        });
+      } finally {
+        btnSubmit.disabled = false;
+        btnText.textContent = "Kirim Presensi & Laporan";
+        spinner.classList.add("hidden");
+      }
+    }
+
+    // ==========================================
+    // 9. TAMPILAN BUKTI SUKSES
+    // ==========================================
+    function showSuccessReceipt(data) {
+      document.getElementById("stepVerificationCard").classList.add("hidden");
+      document.getElementById("stepFormContainer").classList.add("hidden");
+
+      const successCard = document.getElementById("stepSuccessCard");
+      successCard.classList.remove("hidden");
+
+      document.getElementById("successMitraName").textContent = data.nama;
+      document.getElementById("receiptId").textContent = data.id;
+      document.getElementById("receiptNikName").textContent = `${data.nik} - ${data.nama}`;
+      document.getElementById("receiptTime").textContent = data.time;
+      document.getElementById("receiptPosts").textContent = `${data.totalPosts} Konten`;
+
+      const mapsLink = document.getElementById("receiptMapsLink");
+      if (data.mapsLink) {
+        mapsLink.href = data.mapsLink;
+        mapsLink.classList.remove("hidden");
+      } else {
+        mapsLink.classList.add("hidden");
+      }
+
+      successCard.scrollIntoView({ behavior: 'smooth' });
+      lucide.createIcons();
+    }
+
+    function resetToHome() {
+      document.getElementById("attendanceForm").reset();
+      document.getElementById("nikInput").value = "";
+      document.getElementById("totalPostsBadge").textContent = "0 Konten";
+
+      document.getElementById("stepSuccessCard").classList.add("hidden");
+      document.getElementById("stepFormContainer").classList.add("hidden");
+
+      const verifCard = document.getElementById("stepVerificationCard");
+      verifCard.classList.remove("hidden", "opacity-50", "pointer-events-none");
+      document.getElementById("nikStatusMessage").classList.add("hidden");
+
+      currentEmployee = null;
+      validateAllLinksRealtime();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // ==========================================
+    // 10. MODAL KONFIGURASI URL APPS SCRIPT
+    // ==========================================
+    function openConfigModal() {
+      document.getElementById("gasUrlInput").value = CONFIG_SCRIPT_URL;
+      document.getElementById("configModal").classList.remove("hidden");
+    }
+
+    function closeConfigModal() {
+      document.getElementById("configModal").classList.add("hidden");
+    }
+
+    function saveConfigUrl() {
+      const url = document.getElementById("gasUrlInput").value.trim();
+      CONFIG_SCRIPT_URL = url;
+      localStorage.setItem("PRESENSI_GAS_URL", url);
+      checkConfigUrlStatus();
+      closeConfigModal();
+
+      Swal.fire({
+        icon: "success",
+        title: "URL Berhasil Disimpan",
+        text: url ? "Aplikasi sekarang terhubung ke Google Apps Script Anda!" : "Kembali ke mode simulasi demo.",
+        confirmButtonColor: "#2563eb"
+      });
+    }
+  </script>
+</body>
+
+</html>
