@@ -1328,9 +1328,17 @@
           const result = await response.json();
 
           if (!result.success) {
+            let errorTitle = "Gagal Menyimpan";
+            if (result.code === "INVALID_ACCOUNT_OWNERSHIP") errorTitle = "Bukan Akun Resmi Anda!";
+            else if (result.code === "INVALID_URL") errorTitle = "Tautan / Domain Tidak Diizinkan!";
+            else if (result.code === "INVALID_EMPLOYEE") errorTitle = "Identitas Mitra Tidak Valid!";
+            else if (result.code === "INVALID_COUNT") errorTitle = "Jumlah Postingan Tidak Valid!";
+            else if (result.code === "DUPLICATE_ENTRY") errorTitle = "Sudah Melakukan Presensi!";
+            else if (result.code === "DUPLICATE_LINK_DATABASE" || result.code === "DUPLICATE_LINK_INTERNAL") errorTitle = "Tautan Duplikat Ditolak!";
+
             Swal.fire({
               icon: "error",
-              title: result.code === "INVALID_ACCOUNT_OWNERSHIP" ? "Bukan Akun Resmi Anda!" : "Gagal Menyimpan",
+              title: errorTitle,
               html: `<div class="text-left text-xs p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-900 whitespace-pre-wrap">${result.message}</div>`,
               confirmButtonColor: "#dc2626"
             });
